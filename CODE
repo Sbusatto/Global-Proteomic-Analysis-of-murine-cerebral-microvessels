@@ -1,0 +1,318 @@
+Library Upload
+
+```{r}
+library(readxl)
+library(pheatmap)
+library(corrplot)
+library(dplyr)
+library(ggplot2)
+library(factoextra)
+library(eulerr)
+```
+
+Follow Readme Instruction to import Raw data and create dataset db,sb and sb3
+
+```{r}
+db <- read_excel("COPY AND PASTE HERE THE FILE PATH", sheet = "23030809_MosesLab_SB")
+sb <- read_excel("COPY AND PASTE HERE THE FILE PATH")
+sb3 <- read_excel("COPY AND PASTE HERE THE FILE PATH")
+```
+
+```{r}
+# Remove columns 1-4 and from 21 on
+columns_to_remove <- c(1:4, 21:ncol(db))
+db1 <- db[, -columns_to_remove]
+
+# New database (db2) Keeping only the values >0 (=9.96) 
+counts_greater_than_threshold <- colSums(db1[, -1] > 9.965785, na.rm = TRUE)
+db2 <- data.frame(Column = colnames(db1)[-1], Count = counts_greater_than_threshold)
+
+# Create three separate data frames based on row ranges
+PBS <- db2[1:5, ]
+P_EVs<- db2[6:10, ]
+Br_EVs <- db2[11:20, ]
+Br_EVs <- na.omit(Br_EVs)
+```
+
+Horizontal boxplot
+
+```{r}
+# Horizontal boxplot
+boxplot(P_EVs$Count, horizontal = TRUE,
+        xlab = "Proteins detected in P-EV samples",
+        ylim = c(2000, 3500))
+boxplot(Br_EVs$Count, horizontal = TRUE,
+        xlab = "Proteins detected in Br-EV samples",
+        ylim = c(2000, 3500))
+boxplot(PBS$Count, horizontal = TRUE,
+        xlab = "Proteins detected in PBS samples",
+        ylim = c(2000, 3500))
+
+```
+
+Heat map
+
+```{r}
+# Filter rows based on given conditions
+db_filtered <- db[!(db$`Log2 Br-EVs/PBS` <= 0.5 & db$`Log2 Br-EVs/PBS` >= -0.5),]
+sample_order <- c("PBS 1", "PBS 2", "PBS 3", "PBS 4", "PBS 5", 
+                  "P-EVs 1", "P-EVs 2", "P-EVs 3", "P-EVs 4", "P-EVs 5", 
+                  "Br-EVs 1", "Br-EVs 2", "Br-EVs 3", "Br-EVs 4", "Br-EVs 5")
+db_ordered <- db_filtered[, sample_order]
+db_ordered <- db_ordered[complete.cases(db_ordered), ]
+
+
+# Color breaks and palette for the heatmap
+breaks <- seq(9.96, 33, by=5)
+colors <- colorRampPalette(c("blue", "red"))(length(breaks) - 1)
+
+# Create the heatmap 
+
+pheatmap(db_ordered, 
+         breaks = breaks, 
+         color = colors, 
+         cluster_cols = FALSE,
+         show_rownames = FALSE)
+
+
+```
+
+Correlation Heatmap
+
+```{r}
+# Reorder the columns of db_ordered based on the specified order
+ordered_samples <- c("PBS 1", "PBS 2", "PBS 3", "PBS 4", "PBS 5", 
+                     "P-EVs 1", "P-EVs 2", "P-EVs 3", "P-EVs 4", "P-EVs 5", 
+                     "Br-EVs 1", "Br-EVs 2", "Br-EVs 3", "Br-EVs 4", "Br-EVs 5")
+db_ordered <- db_ordered[, ordered_samples]
+
+# Calculate and plot the correlation matrix
+cor_matrix <- cor(db_ordered, use = "pairwise.complete.obs") # using pairwise deletion of missing data
+corrplot(cor_matrix, method="color", type="upper", 
+         tl.col="black", tl.srt=90) # Text label color and rotation
+
+```
+
+\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~ 
+Removing Outlier from Dataset SB
+
+```{r}
+# Removal of columns 1-4 and from 21 on
+columns_to_remove <- c(1:4, 21:ncol(sb))
+sb1 <- sb[, -columns_to_remove]
+
+# Keep values >0 (9.96) and create db2
+counts_greater_than_threshold <- colSums(sb1[, -1] > 9.965785, na.rm = TRUE)
+sb2 <- data.frame(Column = colnames(sb1)[-1], Count = counts_greater_than_threshold)
+
+# Create three separate data frames based on row ranges
+PBS_sb <- sb2[1:5, ]
+P_EVs_sb <- sb2[6:10, ]
+Br_EVs_sb <- sb2[11:20, ]
+Br_EVs_sb <- na.omit(Br_EVs_sb)
+
+
+```
+
+Substitution of NA values with group (PBS, P-EVs and Br-EVs average) (no outlier)
+
+```{r}
+# Define function to compute the median excluding NAs
+row_median <- function(row) {
+  median(row, na.rm = TRUE)
+}
+
+# Replace NAs with row-wise median
+sb1 <- sb1 %>%
+  rowwise() %>%
+  mutate(
+    med = row_median(c_across(`PBS 1`:`PBS 5`)),
+    `PBS 1` = ifelse(is.na(`PBS 1`), med, `PBS 1`),
+    `PBS 2` = ifelse(is.na(`PBS 2`), med, `PBS 2`),
+    `PBS 3` = ifelse(is.na(`PBS 3`), med, `PBS 3`),
+    `PBS 4` = ifelse(is.na(`PBS 4`), med, `PBS 4`),
+    `PBS 5` = ifelse(is.na(`PBS 5`), med, `PBS 5`)
+  ) %>%
+  ungroup() %>%
+  select(-med)
+
+# Define function to compute the median excluding NAs
+row_median <- function(row) {
+  median(row, na.rm = TRUE)
+}
+
+# Replace NAs with row-wise median
+sb1 <- sb1 %>%
+  rowwise() %>%
+  mutate(
+    med = row_median(c_across(`P-EVs 1`:`P-EVs 5`)),
+    `P-EVs 1` = ifelse(is.na(`P-EVs 1`), med, `P-EVs 1`),
+    `P-EVs 2` = ifelse(is.na(`P-EVs 2`), med, `P-EVs 2`),
+    `P-EVs 3` = ifelse(is.na(`P-EVs 3`), med, `P-EVs 3`),
+    `P-EVs 4` = ifelse(is.na(`P-EVs 4`), med, `P-EVs 4`),
+    `P-EVs 5` = ifelse(is.na(`P-EVs 5`), med, `P-EVs 5`)
+  ) %>%
+  ungroup() %>%
+  select(-med)  # remove the temporary 'med' column
+
+
+# Define function to compute the median excluding NAs
+row_median <- function(row) {
+  median(row, na.rm = TRUE)
+}
+
+# Replace NAs with row-wise median
+sb1 <- sb1 %>%
+  rowwise() %>%
+  mutate(
+    med = row_median(c_across(`Br-EVs 1`:`Br-EVs 5`)),
+    `Br-EVs 1` = ifelse(is.na(`Br-EVs 1`), med, `Br-EVs 1`),
+    `Br-EVs 2` = ifelse(is.na(`Br-EVs 2`), med, `Br-EVs 2`),
+    `Br-EVs 3` = ifelse(is.na(`Br-EVs 3`), med, `Br-EVs 3`),
+    `Br-EVs 4` = ifelse(is.na(`Br-EVs 4`), med, `Br-EVs 4`),
+    `Br-EVs 5` = ifelse(is.na(`Br-EVs 5`), med, `Br-EVs 5`)
+  ) %>%
+  ungroup() %>%
+  select(-med)  
+
+
+```
+
+PCA (no outlier)
+
+```{r}
+# Define a function to label each row based on the column with the highest mean value
+label_by_max_mean <- function(row) {
+  means <- c(mean(row[1:5]), mean(row[6:10]), mean(row[11:15]))
+  sample_names <- c("PBS", "P-EVs", "Br-EVs")
+  return(sample_names[which.max(means)])
+}
+
+# Extracting specific columns: 21-26, 28-30, 59, 63, 67 from the 'sb' dataset
+selected_data <- sb1[, c(2:6, 7:11,12:16)]
+
+# Apply this function to every row of your dataset
+sample_labels <- apply(selected_data, 1, label_by_max_mean)
+
+pca_result <- prcomp(selected_data, center = TRUE, scale. = TRUE)
+
+pca_data <- data.frame(PC1 = pca_result$x[,1], PC2 = pca_result$x[,2], sample = sample_labels)
+
+ggplot(pca_data, aes(x=PC1, y=PC2, color=sample)) +
+  geom_point(size=1, alpha=0.5) +  # Adjusted alpha for points
+  stat_ellipse(level=0.50, type="norm", size=1) +  # Increased line size for ellipses
+  scale_color_manual(values=c("PBS"="black", "P-EVs"="blue", "Br-EVs"="red")) +
+  theme_minimal(base_size = 14) +  # Increased base font size for better clarity
+  ggtitle("PCA plot with 50% Confidence Ellipse")
+
+```
+
+eulero (no outlier)
+
+```{r}
+
+# Removal of columns 1-4 and from 21 on
+columns_to_remove <- c(1:3, 21:ncol(sb3))
+sb13 <- sb3[, -columns_to_remove]
+
+# For PBS
+PBS_indices <- rowSums(!is.na(sb3[, c("PBS 1", "PBS 2", "PBS 3", "PBS 4", "PBS 5")]) & 
+                        sb3[, c("PBS 1", "PBS 2", "PBS 3", "PBS 4", "PBS 5")] > 9.965784) == 5
+PBS_common <- sb3$Genes[PBS_indices]
+
+# For P-EVs
+P_EVs_indices <- rowSums(!is.na(sb3[, c("P-EVs 1", "P-EVs 2", "P-EVs 3", "P-EVs 4", "P-EVs 5")]) & 
+                           sb3[, c("P-EVs 1", "P-EVs 2", "P-EVs 3", "P-EVs 4", "P-EVs 5")] > 9.965784) == 5
+P_EVs_common <- sb3$Genes[P_EVs_indices]
+
+# For Br-EVs
+Br_EVs_indices <- rowSums(!is.na(sb3[, c("Br-EVs 1", "Br-EVs 2", "Br-EVs 3", "Br-EVs 4", "Br-EVs 5")]) & 
+                          sb3[, c("Br-EVs 1", "Br-EVs 2", "Br-EVs 3", "Br-EVs 4", "Br-EVs 5")] > 9.965784) == 5
+Br_EVs_common <- sb3$Genes[Br_EVs_indices]
+
+# Remove duplicates, if any, from each category
+PBS_common <- unique(PBS_common)
+P_EVs_common <- unique(P_EVs_common)
+Br_EVs_common <- unique(Br_EVs_common)
+
+# Plot the Euler diagram
+
+colors <- c(PBS = "white", P_EVs = "blue", Br_EVs = "red")
+
+fit <- euler(list(PBS = PBS_common, P_EVs = P_EVs_common, Br_EVs = Br_EVs_common))
+
+plot(fit, fills = colors, quantities = TRUE)
+
+print(fit)
+
+matrix_counts <- as.matrix(fit)
+
+labels <- colnames(matrix_counts)
+
+for (label in labels) {
+  coords <- fit$diagram$layout$coords[label, ]
+  count <- matrix_counts[1, label]
+  text(coords, labels = count)
+}
+
+```
+
+Volcano Plots
+
+```{r}
+# Extract columns 21 and 59
+Br_EVs_PBS_volc <- sb[, c(21, 59)]
+
+# Extract columns 22 and 63
+P_EVs_PBS_volc <- sb[, c(22, 63)]
+
+# Extract columns 23 and 67
+Br_EVs_P_EVs_volc <- sb[, c(23, 67)]
+
+# Volcano plot
+Br_EVs_PBS_volc_plot <- ggplot(Br_EVs_PBS_volc, 
+                       aes(x=`Log2 Br-EVs/PBS`, 
+                           y=`Br-EVs/PBS Adj P Value`, 
+                           color=ifelse((`Log2 Br-EVs/PBS` < -0.5 | `Log2 Br-EVs/PBS` > 0.5) & `Br-EVs/PBS Adj P Value` <= 0.05, "red", "black"))) +
+  geom_point(alpha=0.4) + 
+  scale_color_identity() +  # Use the colors as specified in the data
+  theme_minimal() +
+  labs(title="Br-EVs_PBS_Volcano_Plot", x="Log2 Br-EVs/PBS", y="Br-EVs/PBS Adj P Value") +
+  geom_hline(yintercept=0.05, color="red", linetype="dashed") +  # Line for a common significance level
+  scale_y_log10(breaks = c(1, 0.1, 0.01, 0.001, 0.0001, 1e-05, 1e-06),
+                labels = c("1", "0.1", "0.01", "0.001", "0.0001", "1e-05", "1e-06")) +
+  coord_cartesian(ylim = c(1, 1e-6))
+
+P_EVs_PBS_volc_plot <- ggplot(P_EVs_PBS_volc, 
+                               aes(x=`Log2 P-EVs/PBS`, 
+                                   y=`P-EVs/PBS Adj P Value`, 
+                                   color=ifelse((`Log2 P-EVs/PBS` < -0.5 | `Log2 P-EVs/PBS` > 0.5) & `P-EVs/PBS Adj P Value` <= 0.05, "blue", "black"))) +
+  geom_point(alpha=0.4) + 
+  scale_color_identity() +  # Use the colors as specified in the data
+  theme_minimal() +
+  labs(title="P-EVs_PBS_Volcano_Plot", x="Log2 P-EVs/PBS", y="P-EVs/PBS Adj P Value") +
+  geom_hline(yintercept=0.05, color="blue", linetype="dashed") +  # Line for a common significance level
+  scale_y_log10(breaks = c(1, 0.1, 0.01, 0.001, 0.0001, 1e-05, 1e-06),
+                labels = c("1", "0.1", "0.01", "0.001", "0.0001", "1e-05","1e-06")) +
+  coord_cartesian(ylim = c(1, 1e-06))
+
+Br_EVs_P_EVs_volc_plot <- ggplot(Br_EVs_P_EVs_volc, 
+                                 aes(x=`Log2 Br-EVs/P-EVs`, 
+                                     y=`Br-EVs/P-EVs Adj P Value`, 
+                                     color=ifelse((`Log2 Br-EVs/P-EVs` < -0.5 | `Log2 Br-EVs/P-EVs` > 0.5) & `Br-EVs/P-EVs Adj P Value` <= 0.05, "green", "black"))) +
+  geom_point(alpha=0.4) + 
+  scale_color_identity() +  # Use the colors as specified in the data
+  theme_minimal() +
+  labs(title="Br-EVs_P-EVs_Volcano_Plot", x="Log2 Br-EVs_P-EVs", y="Br-EVs_P-EVs Adj P Value") +
+  geom_hline(yintercept=0.05, color="green", linetype="dashed") +  # Line for a common significance level
+  scale_y_log10(breaks = c(1, 0.1, 0.01, 0.001, 0.0001, 1e-05, 1e-06),
+                labels = c("1", "0.1", "0.01", "0.001", "0.0001", "1e-05","1e-06")) +
+  coord_cartesian(ylim = c(1, 1e-6))
+
+
+
+# Show the plot
+print(Br_EVs_PBS_volc_plot)
+print(P_EVs_PBS_volc_plot)
+print(Br_EVs_P_EVs_volc_plot)
+```
