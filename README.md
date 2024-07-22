@@ -1,7 +1,7 @@
 # Global-Proteomic-Analysis-of-murine-cerebral-microvessels
 
 ## Abstract
-This code will process global proteomics data obtained from the analysis of murine cerebral microvessels isolated from animals administered intravenously with PBS, extracellular vesicles (EVS) secreted from human triple-negative breast cancer cells MDA-MB-231 (P-EVs) and their respective brainseeking cell line (Br-EVs)
+This code will process global proteomics data obtained from the analysis of murine cerebral microvessels isolated from animals administered intravenously with PBS, extracellular vesicles (EVs) secreted from human triple-negative breast cancer cells MDA-MB-231 (P-EVs) and their respective brainseeking cell line (Br-EVs)
 
 ## Installation R and R studio
 To install  R and Rstudio, please click on this link https://rstudio-education.github.io/hopr/starting.html and follow the steps 
